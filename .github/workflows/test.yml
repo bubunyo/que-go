@@ -1,0 +1,40 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+name: Run Tests
+jobs:
+  test:
+    strategy:
+      matrix:
+        go-version: [ 1.19.4 ]
+        platform: [ubuntu-latest]
+    runs-on: ${{ matrix.platform }}
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: que-go-test
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }} # https://github.com/actions/checkout/issues/299#issuecomment-790022942
+      - name: Run sql setup script
+        run: psql -h localhost -U postgres -d que-go-test -f schema.sql
+        env:
+          PGPASSWORD: postgres
+      - name: Run tests
+        run: go test ./...
+      - name: Clean test cache
+        run: go clean -testcache

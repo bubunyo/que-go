@@ -1,23 +1,24 @@
 package que
 
 import (
+	"context"
 	"testing"
 
-	"github.com/jackc/pgx"
+	pgx "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var testConnConfig = pgx.ConnConfig{
-	Host:     "localhost",
-	Database: "que-go-test",
+var testConnConfig = func() pgxpool.Config {
+	poolConfig, _ := pgxpool.ParseConfig("host=localhost database=que-go-test user=postgres password=postgres")
+	return *poolConfig
 }
 
-func openTestClientMaxConns(t testing.TB, maxConnections int) *Client {
-	connPoolConfig := pgx.ConnPoolConfig{
-		ConnConfig:     testConnConfig,
-		MaxConnections: maxConnections,
-		AfterConnect:   PrepareStatements,
-	}
-	pool, err := pgx.NewConnPool(connPoolConfig)
+func openTestClientMaxConns(t testing.TB, maxConnections int32) *Client {
+	connPoolConfig := testConnConfig()
+	connPoolConfig.MaxConns = maxConnections
+	connPoolConfig.AfterConnect = PrepareStatements
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), &connPoolConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,20 +29,20 @@ func openTestClient(t testing.TB) *Client {
 	return openTestClientMaxConns(t, 5)
 }
 
-func truncateAndClose(pool *pgx.ConnPool) {
-	if _, err := pool.Exec("TRUNCATE TABLE que_jobs"); err != nil {
+func truncateAndClose(ctx context.Context, pool *pgxpool.Pool) {
+	if _, err := pool.Exec(ctx, "TRUNCATE TABLE que_jobs"); err != nil {
 		panic(err)
 	}
 	pool.Close()
 }
 
-func findOneJob(q queryable) (*Job, error) {
+func findOneJob(ctx context.Context, q queryable) (*Job, error) {
 	findSQL := `
 	SELECT priority, run_at, job_id, job_class, args, error_count, last_error, queue
 	FROM que_jobs LIMIT 1`
 
 	j := &Job{}
-	err := q.QueryRow(findSQL).Scan(
+	err := q.QueryRow(ctx, findSQL).Scan(
 		&j.Priority,
 		&j.RunAt,
 		&j.ID,
