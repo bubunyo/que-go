@@ -192,10 +192,6 @@ type queryable interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-
-	//Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error)
-	//Query(ctx context.Context, sql string, args ...any) (Rows, error)
-	//QueryRow(ctx context.Context, sql string, args ...any) Row
 }
 
 // Maximum number of loop iterations in LockJob before giving up.  This is to
@@ -239,6 +235,7 @@ func (c *Client) LockJob(ctx context.Context, queue string) (*Job, error) {
 			&j.Type,
 			&j.Args,
 			&j.ErrorCount,
+			&j.LastError,
 		)
 		if err != nil {
 			conn.Release()
